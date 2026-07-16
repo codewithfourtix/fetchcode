@@ -22,8 +22,9 @@ from fetchcode.cpan import CPAN
 from fetchcode.cran import CRAN
 from fetchcode.huggingface import Huggingface
 from fetchcode.pypi import Pypi
+from fetchcode.nix import Nix
 
-package_registry = [Pypi, CRAN, CPAN, Huggingface, Composer]
+package_registry = [Pypi, CRAN, CPAN, Huggingface, Composer, Nix]
 
 router = Router()
 

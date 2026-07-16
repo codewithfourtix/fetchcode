@@ -1,0 +1,370 @@
+{
+  "name": "hstr",
+  "summary": "Shell history suggest box - easily view, navigate, search and use your command history",
+  "homepage_url": "https://github.com/dvorka/hstr",
+  "license": "Apache-2.0",
+  "releases": [
+    {
+      "version": "3.2",
+      "last_updated": "2026-06-27T07:37:20Z",
+      "platforms": [
+        {
+          "arch": "x86-64",
+          "os": "Linux",
+          "system": "x86_64-linux",
+          "attribute_path": "hstr",
+          "commit_hash": "3d46470bb3030020f7e1361f33514854f5bfa86d",
+          "date": "2026-06-27T07:37:20Z",
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/i8dbqy1jr94q3m3bmxx1d5g26jm74jc7-hstr-3.2",
+              "default": true
+            }
+          ]
+        },
+        {
+          "arch": "x86-64",
+          "os": "macOS",
+          "system": "x86_64-darwin",
+          "attribute_path": "hstr",
+          "commit_hash": "3d46470bb3030020f7e1361f33514854f5bfa86d",
+          "date": "2026-06-27T07:37:20Z",
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/r910fm5w0iqywcwflp9fx1dsiwf8kqnx-hstr-3.2",
+              "default": true
+            }
+          ]
+        },
+        {
+          "arch": "arm64",
+          "os": "Linux",
+          "system": "aarch64-linux",
+          "attribute_path": "hstr",
+          "commit_hash": "3d46470bb3030020f7e1361f33514854f5bfa86d",
+          "date": "2026-06-27T07:37:20Z",
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/a43k2mgjnkcr101kriy3sy5xv7604prn-hstr-3.2",
+              "default": true
+            }
+          ]
+        },
+        {
+          "arch": "arm64",
+          "os": "macOS",
+          "system": "aarch64-darwin",
+          "attribute_path": "hstr",
+          "commit_hash": "3d46470bb3030020f7e1361f33514854f5bfa86d",
+          "date": "2026-06-27T07:37:20Z",
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/b074ik3wwddnax8vrb00q3xn6hcgnh5h-hstr-3.2",
+              "default": true
+            }
+          ]
+        }
+      ],
+      "platforms_summary": "Linux and macOS",
+      "outputs_summary": ""
+    },
+    {
+      "version": "3.1",
+      "last_updated": "2026-05-21T08:15:18Z",
+      "platforms": [
+        {
+          "arch": "x86-64",
+          "os": "Linux",
+          "system": "x86_64-linux",
+          "attribute_path": "hstr",
+          "commit_hash": "4a29d733e8a7d5b824c3d8c958a946a9867b3eb2",
+          "date": "2026-05-21T08:15:18Z",
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/6vi4la60chs9pqh1hmr3i4mhrzv3kcsm-hstr-3.1",
+              "default": true
+            }
+          ]
+        },
+        {
+          "arch": "x86-64",
+          "os": "macOS",
+          "system": "x86_64-darwin",
+          "attribute_path": "hstr",
+          "commit_hash": "4a29d733e8a7d5b824c3d8c958a946a9867b3eb2",
+          "date": "2026-05-21T08:15:18Z",
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/vcildmf4v1jkci82ny3bfkhn6nlnf6nn-hstr-3.1",
+              "default": true
+            }
+          ]
+        },
+        {
+          "arch": "arm64",
+          "os": "Linux",
+          "system": "aarch64-linux",
+          "attribute_path": "hstr",
+          "commit_hash": "4a29d733e8a7d5b824c3d8c958a946a9867b3eb2",
+          "date": "2026-05-21T08:15:18Z",
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/11hr7jpg2cciyfabhkwpxwldglil4lnx-hstr-3.1",
+              "default": true
+            }
+          ]
+        },
+        {
+          "arch": "arm64",
+          "os": "macOS",
+          "system": "aarch64-darwin",
+          "attribute_path": "hstr",
+          "commit_hash": "4a29d733e8a7d5b824c3d8c958a946a9867b3eb2",
+          "date": "2026-05-21T08:15:18Z",
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/vh8m653ps0n96lg68w90sf4xbi9n2nvx-hstr-3.1",
+              "default": true
+            }
+          ]
+        }
+      ],
+      "platforms_summary": "Linux and macOS",
+      "outputs_summary": ""
+    },
+    {
+      "version": "2.6",
+      "last_updated": "2023-04-13T03:55:09Z",
+      "platforms": [
+        {
+          "arch": "x86-64",
+          "os": "Linux",
+          "system": "x86_64-linux",
+          "attribute_path": "hstr",
+          "commit_hash": "96ba1c52e54e74c3197f4d43026b3f3d92e83ff9",
+          "date": "2023-04-13T03:55:09Z",
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/wrq1ywzjh0zmmywrm28xvrp75k7z3986-hstr-2.6",
+              "default": true,
+              "nar": "nar/0ij9ia9sdjrjzq4c8c6501661aj47jdns4g9rcrld3p6slvbg7p8.nar.xz"
+            }
+          ]
+        },
+        {
+          "arch": "x86-64",
+          "os": "macOS",
+          "system": "x86_64-darwin",
+          "attribute_path": "hstr",
+          "commit_hash": "96ba1c52e54e74c3197f4d43026b3f3d92e83ff9",
+          "date": "2023-04-13T03:55:09Z",
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/6fikr863aq1pjrzmqf4mi4fbzdmsr03n-hstr-2.6",
+              "default": true,
+              "nar": "nar/00f87phwxliq9pscsvmwh3r842ifrgjlghaix7mkx6i4gmqxmqjr.nar.xz"
+            }
+          ]
+        },
+        {
+          "arch": "arm64",
+          "os": "macOS",
+          "system": "aarch64-darwin",
+          "attribute_path": "hstr",
+          "commit_hash": "96ba1c52e54e74c3197f4d43026b3f3d92e83ff9",
+          "date": "2023-04-13T03:55:09Z",
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/82hrwkfgp2vsjsh38lqzrk3sls8gfhjy-hstr-2.6",
+              "default": true,
+              "nar": "nar/1dbypgck46balmkwzccbkdjwzkk67wm7183dr4yr7yzsfxh3jzh9.nar.xz"
+            }
+          ]
+        },
+        {
+          "arch": "arm64",
+          "os": "Linux",
+          "system": "aarch64-linux",
+          "attribute_path": "hstr",
+          "commit_hash": "96ba1c52e54e74c3197f4d43026b3f3d92e83ff9",
+          "date": "2023-04-13T03:55:09Z",
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/bb0jc868vmnxhdc5p00kfzcc7917hf0n-hstr-2.6",
+              "default": true,
+              "nar": "nar/11v0k6w7y22crvdsh7c23amai4i240vffg9spnw5wgswzj3w03mj.nar.xz"
+            }
+          ]
+        }
+      ],
+      "platforms_summary": "Linux and macOS",
+      "outputs_summary": ""
+    },
+    {
+      "version": "2.5",
+      "last_updated": "2022-12-17T09:19:40Z",
+      "platforms": [
+        {
+          "arch": "x86-64",
+          "os": "Linux",
+          "system": "x86_64-linux",
+          "attribute_path": "hstr",
+          "commit_hash": "80c24eeb9ff46aa99617844d0c4168659e35175f",
+          "date": "2022-12-17T09:19:40Z",
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/7cn897g25ybypr2mds7jglhc48w6dvmk-hstr-2.5",
+              "default": true,
+              "nar": "nar/103fp6ka35wr4ib0dz5myk1nmql9fxy3m4bh86j18idv4ky6jj3r.nar.xz"
+            }
+          ]
+        },
+        {
+          "arch": "x86-64",
+          "os": "macOS",
+          "system": "x86_64-darwin",
+          "attribute_path": "hstr",
+          "commit_hash": "80c24eeb9ff46aa99617844d0c4168659e35175f",
+          "date": "2022-12-17T09:19:40Z",
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/pxzpdihf8q9axxv8gic02g8ag910rnj8-hstr-2.5",
+              "default": true,
+              "nar": "nar/1gwahs8fpbfphr1wznryx4yml640gn6vkr8nwqysvayp89nng6s7.nar.xz"
+            }
+          ]
+        },
+        {
+          "arch": "arm64",
+          "os": "Linux",
+          "system": "aarch64-linux",
+          "attribute_path": "hstr",
+          "commit_hash": "80c24eeb9ff46aa99617844d0c4168659e35175f",
+          "date": "2022-12-17T09:19:40Z",
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/3143m8ihxzqg2ibhl02kvkry5kz9q8lv-hstr-2.5",
+              "default": true,
+              "nar": "nar/0pggi3p3gzq59dx95w3182wa6v2knaspwap7z0v710428w8sg0km.nar.xz"
+            }
+          ]
+        },
+        {
+          "arch": "arm64",
+          "os": "macOS",
+          "system": "aarch64-darwin",
+          "attribute_path": "hstr",
+          "commit_hash": "80c24eeb9ff46aa99617844d0c4168659e35175f",
+          "date": "2022-12-17T09:19:40Z",
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/b69pqvxlsc9wyx9cyyk482sbfmhl2rvp-hstr-2.5",
+              "default": true,
+              "nar": "nar/1xcrmpf2bb93wnz9cwij0dw82xwi9iaa0an8ps8jg18vzf89h6k5.nar.xz"
+            }
+          ]
+        }
+      ],
+      "platforms_summary": "Linux and macOS",
+      "outputs_summary": ""
+    },
+    {
+      "version": "2.3",
+      "last_updated": "2022-05-04T19:02:07Z",
+      "platforms": [
+        {
+          "arch": "arm64",
+          "os": "macOS",
+          "system": "aarch64-darwin",
+          "attribute_path": "hstr",
+          "commit_hash": "b4cc9cd38f05f1a764e21bfb1b14e89be76068b0",
+          "date": "2022-05-04T19:02:07Z",
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/4hkmy0rn7mz7zr1jid9hbbq54j7q3z9c-hstr-2.3",
+              "default": true,
+              "nar": "nar/1q49y1kdnjx5rahjy4a0v8flpk2dx4p0yqsbl5w6sc45d28nv5wn.nar.xz"
+            }
+          ]
+        },
+        {
+          "arch": "x86-64",
+          "os": "macOS",
+          "system": "x86_64-darwin",
+          "attribute_path": "hstr",
+          "commit_hash": "b4cc9cd38f05f1a764e21bfb1b14e89be76068b0",
+          "date": "2022-05-04T19:02:07Z",
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/6z3pc1xd7qib4zvwwrwrrppj0m5d2vkb-hstr-2.3",
+              "default": true,
+              "nar": "nar/1fmqrq7xhm0b7nzxcvvs7px06rgiwqnd81smcm9rlxyridf4p6qx.nar.xz"
+            }
+          ]
+        },
+        {
+          "arch": "arm64",
+          "os": "Linux",
+          "system": "aarch64-linux",
+          "attribute_path": "hstr",
+          "commit_hash": "24c33ab7952544ad355d0677c9eea931b23f371c",
+          "date": "2022-05-03T02:40:48Z",
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/pxchya4wfjr2ij3m78knyghcq65plsz3-hstr-2.3",
+              "default": true,
+              "nar": "nar/15sr6brwan6kvgybka8hgjiifyqyc1h3hy52k10fklhkrp8qj3k6.nar.xz"
+            }
+          ]
+        },
+        {
+          "arch": "x86-64",
+          "os": "Linux",
+          "system": "x86_64-linux",
+          "attribute_path": "hstr",
+          "commit_hash": "24c33ab7952544ad355d0677c9eea931b23f371c",
+          "date": "2022-05-03T02:40:48Z",
+          "outputs": null
+        }
+      ],
+      "platforms_summary": "Linux and macOS",
+      "outputs_summary": ""
+    },
+    {
+      "version": "2.2",
+      "last_updated": "2020-11-18T16:15:21Z",
+      "platforms": [
+        {
+          "arch": "x86-64",
+          "os": "Linux",
+          "system": "x86_64-linux",
+          "attribute_path": "hstr",
+          "commit_hash": "6625284c397b44bc9518a5a1567c1b5aae455c08",
+          "date": "2020-11-18T16:15:21Z",
+          "outputs": null
+        }
+      ],
+      "platforms_summary": "Linux",
+      "outputs_summary": ""
+    }
+  ]
+}

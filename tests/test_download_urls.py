@@ -29,6 +29,7 @@ def test_right_class_being_called_for_the_purls():
         "pkg:cpan/EXAMPLE/Some-Module@1.2.3",
         "pkg:composer/laravel/framework@10.0.0",
         "pkg:cran/dplyr@1.0.0",
+        "pkg:nix/nixpkgs/test@1.2.3",
     ]
 
     with patch("fetchcode.download_urls.Router.process") as mock_fetch:

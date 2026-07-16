@@ -39,31 +39,20 @@ class Nix:
     def get_package_data(cls, purl):
         """
         Fetch package data from https://search.devbox.sh/.
-
-        Args:
-            purl: A Package URL string (e.g., "pkg:nix/nixpkgs/Axel@2.17.14")
-
-        Returns:
-            The full JSON response from search.devbox.sh.
         """
         parsed_purl = PackageURL.from_string(purl)
 
         api_url = f"https://search.devbox.sh/v2/pkg?name={parsed_purl.name}"
-        if not verify_url_existence(api_url):
+        try:
+            return fetch_json_response(api_url)
+        except Exception as e:
+            print(f"Failed to fetch package data for {purl}: {e}")
             return None
-
-        return fetch_json_response(api_url)
 
     @classmethod
     def get_download_url(cls, purl):
         """
         Get a single direct download URL of a system-specific binary.
-
-        Args:
-            purl: A Package URL string (e.g., "pkg:nix/nixpkgs/Axel@2.17.14?system=x86_64-linux")
-
-        Returns:
-            The download URL, or None if not found.
         """
         purl_data = PackageURL.from_string(purl)
         have_nix = False
@@ -72,26 +61,25 @@ class Nix:
             have_nix = True
 
         namespace = purl_data.namespace
+        # We will only work with the official nixpkgs repository, at least
+        # for now.
+        if not namespace or namespace.lower() != 'nixpkgs':
+            raise Exception(
+                "Only official nixpkgs repository is supported (i.e. namespace=nixpkgs)."
+            )
         name = purl_data.name
         version = purl_data.version
-        qualifiers = purl_data.qualifiers
-        commit_hash = ""
-        system = ""
-        output = ""
+        qualifiers = purl_data.qualifiers or {}
 
         if "system" in qualifiers:
-            system = qualifiers.get("system")
+            system = qualifiers.get("system", "")
         else:
             raise Exception(
-                f"The 'system' qualifier is required to resolve system-specific binaries."
+                "The 'system' qualifier is required to resolve system-specific binaries."
             )
-        if "commit" in qualifiers:
-            commit_hash = qualifiers.get("commit")
-        if "output" in qualifiers:
-            output = qualifiers.get("output")
-        else:
-            # Default 'out' if no output is defined
-            output = "out"
+        commit_hash = qualifiers.get("commit", "")
+        # Default 'out' if no output is defined
+        output = qualifiers.get("output", "out")
 
         data = cls.get_package_data(purl)
         path = ""
@@ -104,31 +92,26 @@ class Nix:
                 clean_garbage()
 
         if path:
-            narinfo_url = path.replace("/nix/store/", "").split("-")[0]
-            return get_nix_download_url(narinfo_url)
+            return get_nix_download_url(path)
         else:
             return None
 
     @classmethod
-    def get_src_download_url(cls, purl):
+    def get_upstream_src_download_url(cls, purl):
         """
-        Get a single direct source download URL.
-
-        If no version is specified in the PURL, fetches the latest version.
-
-        Args:
-            purl: A Package URL string (e.g., "pkg:nix/nixpkgs/Axel@2.17.14")
-
-        Returns:
-            The download URL, or None if not found.
+        Get a single upstream direct source download URL.
         """
-        # Since Nix is not a central repository, packages are hosted in
-        # different locations, making it difficult to determine their
-        # direct source download URLs. We will provide a few well‑known
-        # repositories and construct direct download URLs when packages are
-        # hosted there. For all other hosts, the download_url will
-        # currently return None. Additional repositories might be supported
-        # progressively.
+        # Nix does not host a central repository of source code packages.
+        # Instead, each package definition (.nix file such as default.nix
+        # or package.nix) specifies how to fetch the upstream source (e.g.
+        # from GitHub, GitLab, SourceForge etc.) and then applies any
+        # patches or configuration during the build phases. The sources
+        # fetched are always the original, unmodified upstream archives.
+        # There is no direct URL for the patched or configured sources.
+        # This function is intended to return the direct upstream
+        # source download_url. Note that this may not represent the
+        # complete build input, since patches and configuration are applied
+        # later in the Nix build process.
         purl_data = PackageURL.from_string(purl)
         have_nix = False
         download_url = None
@@ -136,25 +119,27 @@ class Nix:
         if shutil.which("nix") is not None:
             have_nix = True
 
-        namespace = ""
+        namespace = purl_data.namespace
+        # We will only work with the official nixpkgs repository, at least
+        # for now.
+        if not namespace or namespace.lower() != 'nixpkgs':
+            raise Exception(
+                "Only official nixpkgs repository is supported (i.e. namespace=nixpkgs)."
+            )
         name = purl_data.name
         version = purl_data.version
 
         data = cls.get_package_data(purl)
 
         if data:
-            download_url = construct_url_based_on_netloc(namespace, name, version, data)
-            if not download_url and have_nix:
-                download_url = retrieve_src_download_url_with_nix(name, version)
-                # Try to use the commit_hash appraoch to get the download_url
-                if not download_url and version:
-                    commit_hash = get_commit_hash(data, version)
+            download_url = construct_url_based_on_homepage_url(purl_data, data)
+
+        if not download_url and have_nix:
+            download_url = retrieve_src_download_url_with_nix(name, version)
+            if not download_url and data and version:
+                commit_hash = get_commit_hash(data, version)
+                if commit_hash:
                     download_url = retrieve_src_download_url_with_nix(name, version, commit_hash)
-        else:
-            # Use the `nix` command/utility to retrieve data.
-            # However, this only fetches the latest version.
-            if have_nix:
-                download_url = retrieve_src_download_url_with_nix(name, version)
 
         if not download_url and not have_nix:
             print("Install `nix` and re-run to let `nix` determine the download URL.")
@@ -169,41 +154,24 @@ def get_nix_store_path(data, system, output, commit_hash=None, version=None):
     """
     Find and return the store path (/nix/store/<path>) based on the qualifiers
     """
-    releases = data.get("releases")
+    releases = data.get("releases") or []
+
+    # Filter the list for specific version (no commit_hash provided)
+    if not commit_hash and version:
+        releases = [r for r in releases if r.get("version") == version]
+
     for release in releases:
-        if commit_hash:
-            platforms = release.get("platforms")
-            for platform in platforms:
-                if system == platform.get("system") and commit_hash == platform.get("commit_hash"):
-                    platform_outputs = platform.get("outputs")
-                    for platform_output in platform.get("outputs"):
-                        if output == platform_output.get("name"):
-                            path = platform_output.get("path")
-                            return path
-            return None
-        elif not commit_hash and version:
-            if version == release.get("version"):
-                platforms = release.get("platforms")
-                for platform in platforms:
-                    if system == platform.get("system"):
-                        platform_outputs = platform.get("outputs")
-                        for platform_output in platform_outputs:
-                            if output == platform_output.get("name"):
-                                path = platform_output.get("path")
-                                return path
-                return None
-        else:
-            # No version and no commit_hash.
-            # Default to the latest version.
-            platforms = release.get("platforms")
-            for platform in platforms:
-                if system == platform.get("system"):
-                    platform_outputs = platform.get("outputs")
-                    for platform_output in platform_outputs:
-                        if output == platform_output.get("name"):
-                            path = platform_output.get("path")
-                            return path
-                    return None
+        release_version = release.get("version", "")
+        if version and release_version != version:
+            continue
+        for platform in release.get("platforms", []):
+            if platform.get("system") != system:
+                continue
+            if commit_hash and platform.get("commit_hash") != commit_hash:
+                continue
+            for out in platform.get("outputs", []):
+                if out.get("name") == output:
+                    return out.get("path")
     return None
 
 
@@ -231,41 +199,54 @@ def get_nix_store_path_with_nix(name, system, output, commit_hash):
         return None
 
 
-def retrieve_src_download_url_with_nix(name, version, commit_hash=None):
+def retrieve_src_download_url_with_nix(name, version=None, commit_hash=None):
     """
     Find and return the source download url using 'nix'
     """
     info = get_src_info(name, commit_hash)
+    urls = info.get("urls", [])
 
     download_url = None
     # We don't need to check for version if we have the commit_hash
     if commit_hash:
-        for url in info["urls"]:
+        for url in urls:
             if url.startswith("mirror:"):
-                download_url = covert_mirror_url(url)
+                download_url = convert_mirror_url(url)
             else:
                 if verify_url_existence(url):
                     download_url = url
+            if download_url:
+                break
     else:
         if not version:
-            for url in info["urls"]:
+            for url in urls:
                 if url.startswith("mirror:"):
-                    download_url = covert_mirror_url(url)
+                    download_url = convert_mirror_url(url)
                 else:
                     if verify_url_existence(url):
                         download_url = url
+                if download_url:
+                    break
         else:
-            # Attempt to replace the version and validate that the
-            # URL exists. Return None if the URL is invalid.
-            latest_version = info["version"]
-            for url in info["urls"]:
+            # Attempt to replace the fetched version with the input version
+            # and validate that the URL exists. Return None if the URL is
+            # invalid.
+            fetched_latest_version = info.get("version")
+            for url in urls:
                 if url.startswith("mirror:"):
-                    converted_url = covert_mirror_url(url)
-                    updated_version_url = converted_url.replace(latest_version, version)
+                    converted_url = convert_mirror_url(url)
+                    if converted_url and fetched_latest_version:
+                        updated_version_url = version.join(converted_url.rsplit(fetched_latest_version, 1))
+                    else:
+                        continue
                 else:
-                    updated_version_url = url.replace(latest_version, version)
+                    if not fetched_latest_version:
+                        continue
+                    updated_version_url = version.join(url.rsplit(fetched_latest_version, 1))
+
                 if verify_url_existence(updated_version_url):
                     download_url = updated_version_url
+                    break
 
     return download_url
 
@@ -310,26 +291,39 @@ def get_src_info(attr_path, commit_hash=None):
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         return json.loads(result.stdout)
-    except subprocess.CalledProcessError as e:
+    except (subprocess.CalledProcessError, json.JSONDecodeError) as e:
         print(f"Error evaluating attribute '{attr_path}':", file=sys.stderr)
         print(e.stderr, file=sys.stderr)
         return {"version": None, "urls": []}
 
 
-def construct_url_based_on_netloc(namespace, name, version, data):
+def construct_url_based_on_homepage_url(input_purl, data):
     """
-    Determine and return the download url based on the homepage, name and
+    Determine and return the download url based on the homepage and
     version
     """
     homepage_url = data.get("homepage_url", None)
+    if not homepage_url:
+        return None
+
+    netloc = ""
     # Get the latest version if no version is provided
+    if not input_purl.version:
+        releases = data.get("releases")
+        if not releases:
+            return None
+        version = releases[0].get("version")
+    else:
+        version = input_purl.version
+
     if not version:
-        version = data.get("releases")[0].get("version")
+        return None
 
     netloc, namespace, name = get_url_netloc_namespace_and_name(homepage_url)
     if netloc.endswith("github.io"):
         github_page_url = github_pages_to_repo(homepage_url)
-        netloc, namespace, name = get_url_netloc_namespace_and_name(github_page_url)
+        if github_page_url:
+            netloc, namespace, name = get_url_netloc_namespace_and_name(github_page_url)
 
     if netloc in ("github.com", "gitlab.com", "bitbucket.org"):
         if netloc.endswith(".com"):
@@ -436,7 +430,7 @@ def github_pages_to_repo(url):
     # Verify existence via GitHub API
     api_url = f"https://api.github.com/repos/{org}/{name}"
     try:
-        response = requests.get(api_url, timeout=5)
+        response = requests.get(api_url, timeout=10)
         if response.status_code == 200:
             return repo
     except requests.RequestException:
@@ -486,13 +480,13 @@ def get_mirrors_map():
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         return json.loads(result.stdout)
-    except subprocess.CalledProcessError as e:
+    except (subprocess.CalledProcessError, json.JSONDecodeError) as e:
         print("Error exporting mirrors mapping:", file=sys.stderr)
         print(e.stderr, file=sys.stderr)
         return {}
 
 
-def covert_mirror_url(url):
+def convert_mirror_url(url):
     """
     Convert a mirror:// URL into its actual direct URL
     """
@@ -500,13 +494,14 @@ def covert_mirror_url(url):
 
     mirror_map = get_mirrors_map()
     mirror = url[len("mirror://") :]
-    # Split by "/" to separate components: the first is the type, and the rest form the path.
+    # Split by "/" to separate components: the first is the mirror_type,
+    # and the rest form the path.
     # For example, "mirror://sourceforge/enlightenment/imlib2-1.12.6.tar.xz":
-    # type = "sourceforge"
+    # mirror_type = "sourceforge"
     # path = "enlightenment/imlib2-1.12.6.tar.xz"
-    type = mirror.split("/")[0]
+    mirror_type = mirror.split("/")[0]
     path = "/".join(mirror.split("/")[1:])
-    mirror_urls = mirror_map.get(type, [])
+    mirror_urls = mirror_map.get(mirror_type, [])
     for mirror_url in mirror_urls:
         converted_url = urljoin(mirror_url, path)
         if verify_url_existence(converted_url):
@@ -518,13 +513,13 @@ def get_commit_hash(data, version):
     """
     Get the commit hash.
     """
-    commit_hash = ""
-    releases = data.get("releases")
+    releases = data.get("releases") or []
     for release in releases:
-        if release["version"] == version:
-            commit_hash = release.get("platforms")[0].get("commit_hash")
-            break
-    return commit_hash
+        if release.get("version") == version:
+            platforms = release.get("platforms") or []
+            if platforms:
+                return platforms[0].get("commit_hash")
+    return None
 
 
 def get_nix_download_url(path):
@@ -532,9 +527,15 @@ def get_nix_download_url(path):
     Construct a download url from cache.nixos.org based on the /nix/store/
     path
     """
-    narinfo_hash = path.replace("/nix/store/", "").split("-")[0]
+    base_name = path.rstrip("/").split("/")[-1]
+    narinfo_hash = base_name.split("-")[0]
+
     narinfo_url = f"https://cache.nixos.org/{narinfo_hash}.narinfo"
     url_path = get_narinfo_url(narinfo_url)
+
+    if not url_path:
+        return None
+
     return f"https://cache.nixos.org/{url_path}"
 
 
@@ -543,14 +544,18 @@ def get_narinfo_url(narinfo_url):
     Visit the narinfo url, parsed and return the URL value
     """
     # Fetch the narinfo file
-    response = requests.get(narinfo_url)
-    response.raise_for_status()
+    try:
+        response = requests.get(narinfo_url, timeout=10)
+        response.raise_for_status()
+    except requests.exceptions.RequestException:
+        return None
 
     # Parse line by line
     for line in response.text.splitlines():
         if line.startswith("URL:"):
             # Strip off "URL:" and any whitespace
             return line.split(":", 1)[1].strip()
+
     return None
 
 
@@ -559,7 +564,7 @@ def verify_url_existence(url):
     Performs a fast HTTP HEAD request to check if a generated URL is valid.
     """
     try:
-        response = requests.head(url, allow_redirects=True, timeout=5)
+        response = requests.head(url, allow_redirects=True, timeout=10)
         if response.status_code == 200:
             return True
         elif response.status_code in (403, 429, 409):  # forbidden, rate limit, conflict
@@ -570,22 +575,23 @@ def verify_url_existence(url):
         return False
 
 
-def clarify_version_tag(type, namespace, name, version):
+def clarify_version_tag(repo_type, namespace, name, version):
     """
     Use github/gitlan API to verify the version tag
     """
-    normalized_version = version.lstrip("vV")
+    normalized_version = normalize_string(version)
     tags = []
     try:
-        if type == "github":
+        if repo_type == "github":
             url = f"https://api.github.com/repos/{namespace}/{name}/tags"
 
-        elif type == "gitlab":
-            project_path = f"{namespace}/{name}".strip("/").replace("/", "%2F")
+        elif repo_type == "gitlab":
+            ns = namespace if namespace else ""
+            project_path = f"{ns}/{name}".strip("/").replace("/", "%2F")
             url = f"https://gitlab.com/api/v4/projects/{project_path}/repository/tags"
         else:
             return None
-        response = requests.get(url)
+        response = requests.get(url, timeout=10)
         response.raise_for_status()
         tags = response.json()
     except (requests.RequestException, ValueError):
@@ -593,18 +599,27 @@ def clarify_version_tag(type, namespace, name, version):
 
     for tag in tags:
         tag_name = tag.get("name", "")
-        normalized_tag = tag_name
-        for prefix in ("release-", "RELEASE-", "v", "V"):
-            if normalized_tag.startswith(prefix):
-                normalized_tag = normalized_tag[len(prefix) :]
-                break
+        normalized_tag = normalize_string(tag_name)
         if normalized_version == normalized_tag:
             return tag_name
     return None
+
+
+def normalize_string(version_string):
+    """
+    Normalize common prefix version string
+    """
+    for prefix in ("release-", "RELEASE-", "v", "V"):
+        if version_string.startswith(prefix):
+            return version_string[len(prefix):]
+    return version_string
 
 
 def clean_garbage():
     """
     Delete all unreferenced downloaded tarballs and evaluation caches
     """
-    subprocess.run(["nix-store", "--gc"], capture_output=True)
+    try:
+        subprocess.run(["nix-store", "--gc"], capture_output=True)
+    except FileNotFoundError:
+        pass
