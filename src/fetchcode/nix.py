@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations under the License.
 
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -63,12 +64,14 @@ class Nix:
         namespace = purl_data.namespace
         # We will only work with the official nixpkgs repository, at least
         # for now.
-        if not namespace or namespace.lower() != 'nixpkgs':
+        if not namespace or namespace.lower() != "nixpkgs":
             raise Exception(
                 "Only official nixpkgs repository is supported (i.e. namespace=nixpkgs)."
             )
         name = purl_data.name
         version = purl_data.version
+        if not version:
+            raise Exception("Version is requierd.")
         qualifiers = purl_data.qualifiers or {}
 
         if "system" in qualifiers:
@@ -85,14 +88,22 @@ class Nix:
         path = ""
 
         if data:
-            path = get_nix_store_path(data, system, output, commit_hash, version)
+            path = get_nix_store_path(data, system, output, version, commit_hash)
         if not data or not path:
-            if have_nix and commit_hash:
+            if have_nix:
+                if not commit_hash:
+                    print(
+                        "Please provide a 'commit' qualifier "
+                        "in the PURL for Nix to determine the download URL."
+                    )
+                    return None
                 path = get_nix_store_path_with_nix(name, system, output, commit_hash)
-                clean_garbage()
 
         if path:
-            return get_nix_download_url(path)
+            try:
+                return get_nix_download_url(path)
+            finally:
+                delete_nix_store_path(path)
         else:
             return None
 
@@ -122,13 +133,14 @@ class Nix:
         namespace = purl_data.namespace
         # We will only work with the official nixpkgs repository, at least
         # for now.
-        if not namespace or namespace.lower() != 'nixpkgs':
+        if not namespace or namespace.lower() != "nixpkgs":
             raise Exception(
                 "Only official nixpkgs repository is supported (i.e. namespace=nixpkgs)."
             )
         name = purl_data.name
         version = purl_data.version
-
+        if not version:
+            raise Exception("Version is requierd.")
         data = cls.get_package_data(purl)
 
         if data:
@@ -144,25 +156,21 @@ class Nix:
         if not download_url and not have_nix:
             print("Install `nix` and re-run to let `nix` determine the download URL.")
 
-        if have_nix:
-            clean_garbage()
-
         return download_url
 
 
-def get_nix_store_path(data, system, output, commit_hash=None, version=None):
+def get_nix_store_path(data, system, output, version, commit_hash=None):
     """
     Find and return the store path (/nix/store/<path>) based on the qualifiers
     """
     releases = data.get("releases") or []
 
     # Filter the list for specific version (no commit_hash provided)
-    if not commit_hash and version:
-        releases = [r for r in releases if r.get("version") == version]
+    releases = [r for r in releases if r.get("version") == version]
 
     for release in releases:
         release_version = release.get("version", "")
-        if version and release_version != version:
+        if release_version != version:
             continue
         for platform in release.get("platforms", []):
             if platform.get("system") != system:
@@ -182,16 +190,17 @@ def get_nix_store_path_with_nix(name, system, output, commit_hash):
     """
     system_config = f'system = "{system}";' if system else ""
     output_modifier = f".{output}" if output else ""
+    config_str = "config = { allowBroken = true; allowUnfree = true; };"
 
     nix_expression = (
         f'(import (fetchTarball "https://github.com/NixOS/nixpkgs/archive/{commit_hash}.tar.gz") '
-        f"{{ {system_config} }}).{name}{output_modifier}.outPath"
+        f"{{ {system_config} {config_str} }}).{name}{output_modifier}.outPath"
     )
 
     cmd = ["nix-instantiate", "--eval", "--raw", "-E", nix_expression]
 
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=300)
         return result.stdout.strip()
     except subprocess.CalledProcessError as e:
         print(f"Error evaluating attribute for package '{name}'", file=sys.stderr)
@@ -232,17 +241,17 @@ def retrieve_src_download_url_with_nix(name, version=None, commit_hash=None):
             # and validate that the URL exists. Return None if the URL is
             # invalid.
             fetched_latest_version = info.get("version")
+            if not fetched_latest_version:
+                return download_url
             for url in urls:
                 if url.startswith("mirror:"):
                     converted_url = convert_mirror_url(url)
-                    if converted_url and fetched_latest_version:
-                        updated_version_url = version.join(converted_url.rsplit(fetched_latest_version, 1))
+                    if converted_url:
+                        updated_version_url = converted_url.replace(fetched_latest_version, version)
                     else:
                         continue
                 else:
-                    if not fetched_latest_version:
-                        continue
-                    updated_version_url = version.join(url.rsplit(fetched_latest_version, 1))
+                    updated_version_url = url.replace(fetched_latest_version, version)
 
                 if verify_url_existence(updated_version_url):
                     download_url = updated_version_url
@@ -257,14 +266,16 @@ def get_src_info(attr_path, commit_hash=None):
     retrieve the package’s version and download URL. Return a dictionary
     with "version" and "urls" keys.
     """
+    config_str = "config = { allowBroken = true; allowUnfree = true; };"
+
     # Determine the repository entry point definition
     if commit_hash:
         nixpkgs_import = (
             'import (fetchTarball "https://github.com/NixOS/nixpkgs/archive/'
-            f'{commit_hash}.tar.gz") {{}}'
+            f'{commit_hash}.tar.gz") {{ {config_str} }}'
         )
     else:
-        nixpkgs_import = "import <nixpkgs> {}"
+        nixpkgs_import = "import <nixpkgs> {{ {config_str} }}"
 
     nix_expression = f"""
     let
@@ -289,7 +300,7 @@ def get_src_info(attr_path, commit_hash=None):
         nix_expression,
     ]
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=300)
         return json.loads(result.stdout)
     except (subprocess.CalledProcessError, json.JSONDecodeError) as e:
         print(f"Error evaluating attribute '{attr_path}':", file=sys.stderr)
@@ -307,17 +318,17 @@ def construct_url_based_on_homepage_url(input_purl, data):
         return None
 
     netloc = ""
-    # Get the latest version if no version is provided
-    if not input_purl.version:
-        releases = data.get("releases")
-        if not releases:
-            return None
-        version = releases[0].get("version")
-    else:
-        version = input_purl.version
+    version = input_purl.version
+    qualifiers = input_purl.qualifiers or {}
+    commit_hash = qualifiers.get("commit", "")
 
     if not version:
-        return None
+        if not commit_hash:
+            return None
+        else:
+            version = get_version_from_commit_hash(data, commit_hash)
+            if not version:
+                return None
 
     netloc, namespace, name = get_url_netloc_namespace_and_name(homepage_url)
     if netloc.endswith("github.io"):
@@ -333,32 +344,24 @@ def construct_url_based_on_homepage_url(input_purl, data):
                 version = clarified_version
         elif netloc.endswith(".org"):
             package_type = netloc.removesuffix(".org")
-        # There is an issue where the version may have a 'v' prefix, which
-        # makes the constructed download URL invalid. For example, in
-        # https://github.com/containers/aardvark-dns/, the constructed
-        # download_url is
-        # https://github.com/containers/aardvark-dns/archive/1.8.0.tar.gz, but
-        # this returns a 404 because the actual download URL should be
-        # https://github.com/containers/aardvark-dns/archive/v1.8.0.tar.gz.
-
-        # Users are responsible for providing the correct version string
-        # (including any 'v' prefix). However, from a mining situation, the
-        # source data we collect may omit the prefix, so we need to handle that
-        # case. For example, versions from
-        # https://search.devbox.sh/v2/pkg?name=CuboCore.corepins do not include
-        # the 'v' prefix, but the actual versions from the download site
-        # include it in the tag field:
+        # There is an issue where the version may have a different prefix.
+        # For example, versions from
+        # https://search.devbox.sh/v2/pkg?name=CuboCore.corepins do not
+        # include the 'v' prefix, but the actual versions from the download
+        # site include it in the tag field:
         # https://gitlab.com/api/v4/projects/cubocore%2Fcoreapps%2Fcorepins/repository/tags
 
-        # There are also cases that use other prefix such as release-{version}
-        # See https://search.devbox.sh/v2/pkg?name=SDL2_mixer where one of
-        # the versions is 2.8.2 while the tag from the github is
-        # release-2.8.2
+        # There are also cases that use other prefixes such as
+        # release-{version} See
+        # https://search.devbox.sh/v2/pkg?name=SDL2_mixer where one of the
+        # versions is 2.8.2 while the tag from the github is release-2.8.2
         # (https://github.com/libsdl-org/SDL_mixer/releases/tag/release-2.8.2)
 
         # We want to validate whether the returned download URL is
         # accessible. If it is not, insert a common prefix and try to
         # validate again.
+        # This is actually purely for bitbucket.org as the version is
+        # already checked for github and gitlab at clarify_version_tag()
         common_prefixes = ["v", "V", "v-", "V-", "release-", "RELEASE-"]
         download_url = get_repo_download_url_by_package_type(
             type=package_type, namespace=namespace, name=name, version=version
@@ -380,6 +383,7 @@ def construct_url_based_on_homepage_url(input_purl, data):
         if verify_url_existence(download_url):
             return download_url
     else:
+        # This list can be improved and added over time.
         candidates = []
         # CRAN (R Packages)
         if netloc == "cran.r-project.org":
@@ -442,7 +446,7 @@ def github_pages_to_repo(url):
 def get_url_netloc_namespace_and_name(url):
     """
     Extract netloc, namespace, and name from a URL path.
-    - The last path component is considered the name.
+    - The last path component (except for web files) is considered the name.
     - Everything between netloc and name is considered the namespace.
     """
     parsed = urlparse(url)
@@ -451,6 +455,12 @@ def get_url_netloc_namespace_and_name(url):
 
     if not parts or parts == [""]:
         return netloc, None, None
+
+    if len(parts) > 1:
+        last_part = parts[-1].lower()
+        ignore_extensions = (".html", ".htm", ".php", ".jsp", ".asp", ".aspx")
+        if last_part.startswith("index.") or last_part.endswith(ignore_extensions):
+            parts.pop()
 
     name = parts[-1]
     namespace = "/".join(parts[:-1]) if len(parts) > 1 else None
@@ -478,7 +488,7 @@ def get_mirrors_map():
     ]
 
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=300)
         return json.loads(result.stdout)
     except (subprocess.CalledProcessError, json.JSONDecodeError) as e:
         print("Error exporting mirrors mapping:", file=sys.stderr)
@@ -519,6 +529,21 @@ def get_commit_hash(data, version):
             platforms = release.get("platforms") or []
             if platforms:
                 return platforms[0].get("commit_hash")
+    return None
+
+
+def get_version_from_commit_hash(data, commit_hash):
+    """
+    Get the version.
+    """
+    releases = data.get("releases") or []
+    for release in releases:
+        release_version = release.get("version", "")
+        platforms = release.get("platforms") or []
+        for platform in platforms:
+            platform_hash = platform.get("commit_hash", "")
+            if platform_hash == commit_hash:
+                return release_version
     return None
 
 
@@ -563,6 +588,8 @@ def verify_url_existence(url):
     """
     Performs a fast HTTP HEAD request to check if a generated URL is valid.
     """
+    if not url:
+        return False
     try:
         response = requests.head(url, allow_redirects=True, timeout=10)
         if response.status_code == 200:
@@ -577,49 +604,58 @@ def verify_url_existence(url):
 
 def clarify_version_tag(repo_type, namespace, name, version):
     """
-    Use github/gitlan API to verify the version tag
+    Use github/gitlab API to verify the version tag
     """
-    normalized_version = normalize_string(version)
-    tags = []
-    try:
-        if repo_type == "github":
-            url = f"https://api.github.com/repos/{namespace}/{name}/tags"
+    headers = {}
+    if repo_type == "github":
+        github_token = os.environ.get("GITHUB_TOKEN")
+        if github_token:
+            headers["Authorization"] = f"token {github_token}"
+    elif repo_type == "gitlab":
+        gitlab_token = os.environ.get("GITLAB_TOKEN")
+        if gitlab_token:
+            headers["PRIVATE-TOKEN"] = gitlab_token
+    else:
+        return None
 
+    potential_prefixes = ["", "v", "V", "release-", "RELEASE-", "v-", "V-"]
+    for prefix in potential_prefixes:
+        potential_tag = f"{prefix}{version}"
+
+        if repo_type == "github":
+            url = f"https://api.github.com/repos/{namespace}/{name}/git/refs/tags/{potential_tag}"
         elif repo_type == "gitlab":
             ns = namespace if namespace else ""
             project_path = f"{ns}/{name}".strip("/").replace("/", "%2F")
-            url = f"https://gitlab.com/api/v4/projects/{project_path}/repository/tags"
-        else:
-            return None
-        response = requests.get(url, timeout=10)
-        response.raise_for_status()
-        tags = response.json()
-    except (requests.RequestException, ValueError):
-        return None
+            url = (
+                f"https://gitlab.com/api/v4/projects/{project_path}/repository/tags/{potential_tag}"
+            )
 
-    for tag in tags:
-        tag_name = tag.get("name", "")
-        normalized_tag = normalize_string(tag_name)
-        if normalized_version == normalized_tag:
-            return tag_name
+        try:
+            response = requests.get(url, headers=headers, timeout=10)
+            if response.status_code == 200:
+                return potential_tag
+            elif response.status_code in (403, 429):
+                print(f"Rate limited by {repo_type} API while checking tag {potential_tag}.")
+                return None
+        except requests.RequestException:
+            continue
+
     return None
 
 
-def normalize_string(version_string):
+def delete_nix_store_path(store_path):
     """
-    Normalize common prefix version string
+    Delete a specific path from the Nix store.
     """
-    for prefix in ("release-", "RELEASE-", "v", "V"):
-        if version_string.startswith(prefix):
-            return version_string[len(prefix):]
-    return version_string
+    if not store_path or not store_path.startswith("/nix/store/"):
+        return
 
-
-def clean_garbage():
-    """
-    Delete all unreferenced downloaded tarballs and evaluation caches
-    """
     try:
-        subprocess.run(["nix-store", "--gc"], capture_output=True)
+        subprocess.run(
+            ["nix-store", "--delete", store_path], capture_output=True, check=True, timeout=15
+        )
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+        print(f"Warning: Failed to delete Nix store path {store_path}: {e}")
     except FileNotFoundError:
         pass
