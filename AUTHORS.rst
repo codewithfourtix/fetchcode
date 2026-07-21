@@ -7,3 +7,4 @@ The following organizations or individuals have contributed to this repo:
 - Tushar Goel @ TG1999
 - Thomas Druez @ tdruez
 - Keshav Priyadarshi @ keshav-space
+- Chin Yeung Li @ chinyeungli
