@@ -275,7 +275,7 @@ def get_src_info(attr_path, commit_hash=None):
             f'{commit_hash}.tar.gz") {{ {config_str} }}'
         )
     else:
-        nixpkgs_import = "import <nixpkgs> {{ {config_str} }}"
+        nixpkgs_import = f"import <nixpkgs> {{ {config_str} }}"
 
     nix_expression = f"""
     let
