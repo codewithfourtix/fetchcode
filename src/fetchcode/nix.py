@@ -559,6 +559,7 @@ def get_nix_download_url(path):
     url_path = get_narinfo_url(narinfo_url)
 
     if not url_path:
+        print(f"{narinfo_url} is not accessible.")
         return None
 
     return f"https://cache.nixos.org/{url_path}"
