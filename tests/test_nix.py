@@ -192,3 +192,61 @@ class TestNix(unittest.TestCase):
             mock_data, "96ba1c52e54e74c3197f4d43026b3f3d92e83ff9"
         )
         self.assertEqual(version, "2.6")
+
+    @patch("fetchcode.nix.get_flakeref_version_commit_hash")
+    def test_get_src_info_with_flakeref_no_commit_hash(self, mock_get_flake_hash, mock_fetch):
+        mock_get_flake_hash.return_value = ("aaaaaaaaa", "v2.0")
+
+        result = nix.get_src_info("package_name", "2.0", flakeref="github:owner/repo")
+
+        self.assertEqual(result["version"], "v2.0")
+        self.assertEqual(
+            result["urls"][0], "https://github.com/owner/repo/archive/aaaaaaaaa.tar.gz"
+        )
+        mock_get_flake_hash.assert_called_once_with("https://github.com/owner/repo.git", "2.0")
+
+    def test_get_src_info_with_flakeref_and_commit_hash(self, mock_fetch):
+        result = nix.get_src_info(
+            "package_name", version="2.0", commit_hash="aaaaaaaaa", flakeref="github:owner/repo"
+        )
+
+        self.assertEqual(result["version"], "2.0")
+        self.assertEqual(
+            result["urls"][0], "https://github.com/owner/repo/archive/aaaaaaaaa.tar.gz"
+        )
+
+    @patch("subprocess.run")
+    @patch("shutil.which")
+    def test_get_flakeref_version_commit_hash_success(
+        self, mock_which, mock_subproc_run, mock_fetch
+    ):
+        mock_which.return_value = "/usr/bin/git"
+
+        mock_subproc_run.return_value.stdout = (
+            "1111111111111111111111111111111111111111\trefs/tags/1.0\n"
+            "2222222222222222222222222222222222222222\trefs/tags/v2.0\n"
+            "2222222222222222222222222222222222222222\trefs/tags/v3.0\n"
+        )
+
+        commit_hash, version_tag = nix.get_flakeref_version_commit_hash(
+            "https://github.com/owner/repo.git", "2.0"
+        )
+
+        self.assertEqual(commit_hash, "2222222222222222222222222222222222222222")
+        self.assertEqual(version_tag, "v2.0")
+
+    @patch("subprocess.run")
+    @patch("shutil.which")
+    def test_get_flakeref_version_commit_hash_no_match(
+        self, mock_which, mock_subproc_run, mock_fetch
+    ):
+        mock_which.return_value = "/usr/bin/git"
+        mock_subproc_run.return_value.stdout = (
+            "1111111111111111111111111111111111111111\trefs/tags/1.0\n"
+        )
+
+        commit_hash, version_tag = nix.get_flakeref_version_commit_hash(
+            "https://github.com/owner/repo.git", "1.1"
+        )
+        self.assertIsNone(commit_hash)
+        self.assertIsNone(version_tag)

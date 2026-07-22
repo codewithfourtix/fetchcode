@@ -71,7 +71,7 @@ class Nix:
         name = purl_data.name
         version = purl_data.version
         if not version:
-            raise Exception("Version is requierd.")
+            raise Exception("Version is required.")
         qualifiers = purl_data.qualifiers or {}
 
         if "system" in qualifiers:
@@ -130,28 +130,30 @@ class Nix:
         if shutil.which("nix") is not None:
             have_nix = True
 
-        namespace = purl_data.namespace
-        # We will only work with the official nixpkgs repository, at least
-        # for now.
-        if not namespace or namespace.lower() != "nixpkgs":
-            raise Exception(
-                "Only official nixpkgs repository is supported (i.e. namespace=nixpkgs)."
-            )
         name = purl_data.name
+        namespace = purl_data.namespace
         version = purl_data.version
+        qualifiers = purl_data.qualifiers or {}
+        commit_hash = qualifiers.get("commit", "")
+        flakeref = qualifiers.get("flakeref", "")
+
         if not version:
             raise Exception("Version is requierd.")
-        data = cls.get_package_data(purl)
+
+        if namespace != "nixpkgs" and not flakeref:
+            raise Exception(
+                "Only official nixpkgs repository is supported, "
+                "or please provide the flakeref qualifier."
+            )
+        data = cls.get_package_data(purl) if not flakeref else None
 
         if data:
             download_url = construct_url_based_on_homepage_url(purl_data, data)
 
         if not download_url and have_nix:
-            download_url = retrieve_src_download_url_with_nix(name, version)
-            if not download_url and data and version:
+            if not commit_hash and data:
                 commit_hash = get_commit_hash(data, version)
-                if commit_hash:
-                    download_url = retrieve_src_download_url_with_nix(name, version, commit_hash)
+            download_url = retrieve_src_download_url_with_nix(name, version, commit_hash, flakeref)
 
         if not download_url and not have_nix:
             print("Install `nix` and re-run to let `nix` determine the download URL.")
@@ -208,11 +210,11 @@ def get_nix_store_path_with_nix(name, system, output, commit_hash):
         return None
 
 
-def retrieve_src_download_url_with_nix(name, version=None, commit_hash=None):
+def retrieve_src_download_url_with_nix(name, version, commit_hash=None, flakeref=None):
     """
     Find and return the source download url using 'nix'
     """
-    info = get_src_info(name, commit_hash)
+    info = get_src_info(name, version, commit_hash, flakeref)
     urls = info.get("urls", [])
 
     download_url = None
@@ -260,13 +262,34 @@ def retrieve_src_download_url_with_nix(name, version=None, commit_hash=None):
     return download_url
 
 
-def get_src_info(attr_path, commit_hash=None):
+def get_src_info(attr_path, version, commit_hash=None, flakeref=None):
     """
     Use the `nix-instantiate` command together with the nix_expression to
     retrieve the package’s version and download URL. Return a dictionary
     with "version" and "urls" keys.
     """
     config_str = "config = { allowBroken = true; allowUnfree = true; };"
+
+    if flakeref:
+        if not flakeref.startswith("github"):
+            print("Only flakeref for github is supported at the moment.")
+            return {"version": None, "urls": []}
+
+        rest = flakeref.partition(":")[2]
+        parts = rest.split("/")
+        if len(parts) < 2:
+            return {"version": None, "urls": []}
+        owner, repo = parts[0], parts[1]
+        git_repo = f"https://github.com/{owner}/{repo}.git"
+
+        version_tag = version
+        if not commit_hash:
+            commit_hash, version_tag = get_flakeref_version_commit_hash(git_repo, version)
+        if commit_hash and version_tag:
+            url = f"https://github.com/{owner}/{repo}/archive/{commit_hash}.tar.gz"
+            return {"version": version_tag, "urls": [url]}
+        else:
+            return {"version": None, "urls": []}
 
     # Determine the repository entry point definition
     if commit_hash:
@@ -306,6 +329,44 @@ def get_src_info(attr_path, commit_hash=None):
         print(f"Error evaluating attribute '{attr_path}':", file=sys.stderr)
         print(e.stderr, file=sys.stderr)
         return {"version": None, "urls": []}
+
+
+def get_flakeref_version_commit_hash(git_repo, version):
+    """
+    Get the commit hash from the given version.
+    """
+    if shutil.which("git") is None:
+        return None, None
+    cmd = [
+        "git",
+        "ls-remote",
+        "--tags",
+        git_repo,
+    ]
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=300)
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+        print(f"Error running git ls-remote for {git_repo}: {e}", file=sys.stderr)
+        return None, None
+
+    potential_version_matches = [
+        version,
+        f"v{version}",
+        f"V{version}",
+        f"v-{version}",
+        f"V-{version}",
+        f"release-{version}",
+        f"RELEASE-{version}",
+    ]
+    for line in result.stdout.splitlines():
+        parts = line.split("\t")
+        remote_hash = parts[0]
+        reference_tag = parts[1]
+        version_tag = reference_tag.replace("refs/tags/", "").replace("^{}", "")
+
+        if version_tag in potential_version_matches:
+            return remote_hash, version_tag
+    return None, None
 
 
 def construct_url_based_on_homepage_url(input_purl, data):
