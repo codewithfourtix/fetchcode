@@ -119,9 +119,11 @@ def _get_github_packages(purl, version_regex, ignored_tag_regex, default_package
         else:
             version = tag
 
-        version = version.strip().lstrip("Vv")
+        version = version.strip()
+        if version.startswith(("v", "V")):
+            version = version[1:]
         if "+" in version:
-            first, last = version.split("+")
+            first, last = version.split("+", 1)
             first = first.replace("_", ".")
             version = f"{first}+{last}"
         else:
